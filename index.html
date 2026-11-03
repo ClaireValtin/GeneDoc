@@ -1,0 +1,753 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GeneDoc</title>
+<meta name="description" content="Type a human gene and download its MANE Select genomic sequence and CDS as a checked Word file.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800&family=Instrument+Sans:wght@400;600&family=Spline+Sans+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --band:#0B6B4D; --band-ink:#FFFFFF; --band-soft:#BFE6D6; --band-line:#3F9175;
+  --page:#FFFFFF; --ink:#000000; --muted:#5E6663; --line:#D5DAD8; --panel:#F2F4F3;
+  --ok:#0B6B4D; --warn:#C2410C; --warn-bg:#FFF1E8; --turq:#0E8F8A;
+  --seq-exon:#0070C0; --seq-intron:#808080; --seq-alt:#000000;
+  --coding:#0B6B4D; --utr:#7FD1C9; --flank:#C9CFCD;
+  --display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+  --body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"Spline Sans Mono",Consolas,"Courier New",monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --band:#0B5C43; --band-soft:#A9DCC8; --band-line:#2E8368;
+    --page:#000000; --ink:#FFFFFF; --muted:#A5ADAA; --line:#333938; --panel:#161A19;
+    --ok:#4FD1A5; --warn:#FB923C; --warn-bg:#2B1609; --turq:#3CC9C3;
+    --seq-exon:#5CB8F5; --seq-intron:#8E9694; --seq-alt:#FFFFFF;
+    --coding:#32B98C; --utr:#1F7F79; --flank:#4A5250;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --band:#0B5C43; --band-soft:#A9DCC8; --band-line:#2E8368;
+  --page:#000000; --ink:#FFFFFF; --muted:#A5ADAA; --line:#333938; --panel:#161A19;
+  --ok:#4FD1A5; --warn:#FB923C; --warn-bg:#2B1609; --turq:#3CC9C3;
+  --seq-exon:#5CB8F5; --seq-intron:#8E9694; --seq-alt:#FFFFFF;
+  --coding:#32B98C; --utr:#1F7F79; --flank:#4A5250;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--page);color:var(--ink);font:16px/1.5 var(--body)}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--turq);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 32px}
+
+/* Band */
+.band{background:var(--band);color:var(--band-ink);padding:22px 0 34px}
+.band :focus-visible{outline-color:#FFFFFF}
+.top{display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-between;align-items:baseline}
+.name{font-weight:600}
+.recent{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;font-size:15px}
+.recent span{color:var(--band-soft)}
+.recent button{background:none;border:0;padding:0;color:var(--band-ink);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+form{margin-top:14px}
+.gene-input{display:block;width:100%;background:transparent;border:0;border-bottom:4px solid var(--band-line);border-radius:0;color:var(--band-ink);
+  font:800 clamp(84px,19vw,232px)/.95 var(--display);padding:0 0 6px;letter-spacing:-.005em;caret-color:#FFFFFF}
+.gene-input.long{font-size:clamp(60px,12vw,150px)}
+.gene-input::placeholder{color:var(--band-line);opacity:1}
+.gene-input:focus{outline:0;border-bottom-color:#FFFFFF}
+.actions{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:center;margin-top:18px}
+.flank-field{display:flex;align-items:center;gap:10px}
+.flank-field input{width:6.5em;padding:9px 10px;background:transparent;color:var(--band-ink);border:1px solid var(--band-soft);border-radius:3px;font-variant-numeric:tabular-nums}
+.btn{border:0;border-radius:3px;padding:11px 20px;font-weight:600;cursor:pointer}
+.btn-go{background:#FFFFFF;color:#000000}
+.btn-go[disabled]{opacity:.65;cursor:progress}
+.btn-dl{background:#000000;color:#FFFFFF;text-decoration:none;display:inline-block;overflow-wrap:anywhere}
+.btn-dl.unchecked{background:#C2410C}
+.status{margin:0;min-height:1.5em;max-width:72ch}
+.status.err{background:#FFFFFF;color:#9A3412;padding:8px 12px;border-radius:3px;font-weight:600}
+.choices{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.choices button{background:transparent;border:1px solid var(--band-soft);color:var(--band-ink);border-radius:3px;padding:6px 12px;cursor:pointer;text-align:left}
+
+/* Results */
+main[hidden]{display:none}
+main.wrap{padding-top:30px;padding-bottom:56px}
+h2{font:800 34px/1.1 var(--display);margin:0 0 4px}
+.map-head{display:flex;justify-content:space-between;gap:16px;align-items:baseline;flex-wrap:wrap;margin-bottom:12px}
+.note{color:var(--muted);font-size:14px;margin:0;max-width:75ch}
+.map-scroll{overflow-x:auto;padding:10px 3px 4px}
+.map{display:flex;align-items:stretch;height:74px;min-width:100%}
+.flank{flex:0 0 26px;position:relative}
+.flank::after{content:"";position:absolute;left:0;right:0;top:50%;border-top:2px dotted var(--flank)}
+.intron{min-width:5px;position:relative}
+.intron::after{content:"";position:absolute;left:0;right:0;top:50%;border-top:2px solid var(--flank)}
+.exon{min-width:9px;border:0;padding:0;border-radius:2px;cursor:pointer;position:relative;transition:transform .12s}
+.exon:hover,.exon.on{transform:scaleY(1.14)}
+.exon.on{box-shadow:0 0 0 2px var(--ink)}
+.ticks{display:flex;height:20px;margin-top:8px;min-width:100%;font:13px/20px var(--mono);color:var(--muted)}
+.ticks .flank::after,.ticks .intron::after{display:none}
+.ticks div{min-width:0;position:relative}
+.ticks .t{flex-shrink:0}
+.ticks i{position:absolute;left:50%;transform:translateX(-50%);font-style:normal;white-space:nowrap}
+.readout{font-size:17px;margin:12px 0 0;min-height:1.5em}
+.key{display:flex;flex-wrap:wrap;gap:4px 18px;margin:10px 0 0;font-size:14px;color:var(--muted)}
+.key b{display:inline-block;width:14px;height:14px;border-radius:2px;vertical-align:-2px;margin-right:6px}
+
+.facts{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:40px;margin-top:40px;border-top:2px solid var(--ink);padding-top:22px}
+dl{margin:0;display:grid;grid-template-columns:max-content minmax(0,1fr);gap:7px 18px}
+dt{color:var(--muted)}
+dd{margin:0;overflow-wrap:anywhere}
+.opts{margin-top:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.opts label{display:block;font-size:14px;color:var(--muted)}
+.opts select{display:block;width:100%;margin-top:3px;padding:7px 9px;border:1px solid var(--line);border-radius:3px;background:var(--page);color:var(--ink)}
+.checks{list-style:none;margin:0;padding:0}
+.checks li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:6px;padding:5px 0}
+.checks .m{font-weight:600;color:var(--ok)}
+.checks li.fail .m{color:var(--warn)}
+.checks small{display:block;color:var(--muted);font-size:14px;overflow-wrap:anywhere}
+.checks li.fail small{color:var(--warn)}
+.flags{margin:14px 0 0;padding:10px 14px;background:var(--warn-bg);border-left:4px solid var(--warn);list-style:none}
+.flags li+li{margin-top:6px}
+.flags:empty{display:none}
+
+.seq{margin-top:42px}
+.seq-head{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:8px}
+.btn-copy{background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+.legend{font-size:14px;color:var(--muted);margin:4px 0 0}
+.legend .e{color:var(--seq-exon);font-weight:600}
+.legend .i{color:var(--seq-intron);font-weight:600}
+.legend .k{color:var(--seq-alt);font-weight:600}
+.seqbox{font:13px/1.65 var(--mono);overflow-wrap:anywhere;word-break:break-all;background:var(--panel);padding:14px 16px;max-height:46vh;overflow-y:auto;border-radius:3px;position:relative}
+.seqbox .x{color:var(--seq-exon)}
+.seqbox .n{color:var(--seq-intron)}
+.seqbox .k{color:var(--seq-alt)}
+.seqbox .hit{background:var(--utr);color:#000000}
+footer{border-top:1px solid var(--line);padding:18px 0 30px;color:var(--muted);font-size:14px}
+footer p{margin:0;max-width:80ch}
+@media (max-width:760px){
+  .wrap{padding:0 16px}
+  .facts{grid-template-columns:minmax(0,1fr);gap:28px}
+  dl{grid-template-columns:minmax(0,1fr);gap:0}
+  dd{margin-bottom:9px}
+}
+@media (prefers-reduced-motion:reduce){.exon{transition:none}}
+</style>
+</head>
+<body>
+<header class="band">
+  <div class="wrap">
+    <div class="top">
+      <div class="name">GeneDoc</div>
+      <div class="recent" id="recent" hidden></div>
+    </div>
+    <form id="form" autocomplete="off">
+      <label for="gene" style="position:absolute;left:-9999px">Human gene symbol</label>
+      <input class="gene-input" id="gene" placeholder="Gene" spellcheck="false" autocapitalize="characters" maxlength="30" autofocus>
+      <div class="actions">
+        <label class="flank-field" for="flank">Flank, bp each side<input id="flank" type="number" min="0" max="100000" step="1" value="250" inputmode="numeric"></label>
+        <button class="btn btn-go" id="go" type="submit">Get sequences</button>
+        <a class="btn btn-dl" id="dl" hidden></a>
+        <p class="status" id="status" role="status" aria-live="polite">Type a human gene to get its MANE Select genomic sequence with flanks and its CDS, as a checked Word file.</p>
+      </div>
+      <div class="choices" id="choices" hidden></div>
+    </form>
+  </div>
+</header>
+
+<main class="wrap" id="main" hidden>
+  <section aria-labelledby="map-title">
+    <div class="map-head">
+      <h2 id="map-title">Gene structure</h2>
+      <p class="note">5′ to 3′ in transcript orientation. Lengths are compressed so small exons stay visible. Select an exon to find it in the genomic sequence.</p>
+    </div>
+    <div class="map-scroll">
+      <div class="map" id="map"></div>
+      <div class="ticks" id="ticks"></div>
+    </div>
+    <p class="readout" id="readout"></p>
+    <div class="key" id="key"></div>
+  </section>
+
+  <section class="facts">
+    <div>
+      <h2>Reference</h2>
+      <dl id="meta" style="margin-top:10px"></dl>
+      <div class="opts">
+        <label>Transcript<select id="tx"></select></label>
+        <label>Assembly<select id="asm"><option value="GRCh38">GRCh38</option><option value="T2T">T2T-CHM13</option></select></label>
+      </div>
+    </div>
+    <div>
+      <h2 id="checks-title">Checks</h2>
+      <ul class="checks" id="checks" style="margin-top:6px"></ul>
+      <ul class="flags" id="flags"></ul>
+    </div>
+  </section>
+
+  <section class="seq">
+    <div class="seq-head">
+      <div><h2 id="g-title"></h2><p class="note" id="g-note"></p>
+        <p class="legend"><span class="e">EXONS = uppercase, blue</span> / <span class="i">introns + flanks = lowercase, grey</span></p></div>
+      <button class="btn btn-copy" id="copy-g" type="button">Copy genomic sequence</button>
+    </div>
+    <div class="seqbox" id="g-box" tabindex="0"></div>
+  </section>
+
+  <section class="seq" id="cds-sec">
+    <div class="seq-head">
+      <div><h2 id="c-title"></h2><p class="note" id="c-note"></p>
+        <p class="legend">Colour change = new exon (<span class="e">blue</span> / <span class="k">black</span> alternating; first coding exon = blue)</p></div>
+      <button class="btn btn-copy" id="copy-c" type="button">Copy CDS</button>
+    </div>
+    <div class="seqbox" id="c-box" tabindex="0"></div>
+  </section>
+</main>
+
+<footer><div class="wrap"><p>Every sequence is fetched live from NCBI (Datasets and E-utilities) and rebuilt in your browser. Only the gene symbol goes to NCBI. This browser remembers your recent genes.</p></div></footer>
+
+<script>
+"use strict";
+const EUTILS="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/";
+const DATASETS="https://api.ncbi.nlm.nih.gov/datasets/v2/";
+const DEFAULT_FLANK=250, MAX_FLANK=100000;
+const $=id=>document.getElementById(id);
+const fmt=n=>Number(n).toLocaleString("en-US");
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&apos;"}[c]));
+const store={
+  get(k){try{return localStorage.getItem(k)}catch(e){return null}},
+  set(k,v){try{v?localStorage.setItem(k,v):localStorage.removeItem(k)}catch(e){}}
+};
+let runId=0, current=null, dlUrl=null;
+function readFlank(){
+  const raw=$("flank").value.trim();
+  if(!/^\d+$/.test(raw)||+raw>MAX_FLANK) throw new Error(`Enter a flank between 0 and ${fmt(MAX_FLANK)} bp, as a whole number.`);
+  return +raw;
+}
+
+/* ---------- NCBI access: one request at a time, inside the rate limit ---------- */
+let lastCall=0;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+class Stale extends Error{}
+async function ncbi(url,kind,run){
+  const gap=370;
+  for(let attempt=0;;attempt++){
+    const wait=lastCall+gap-Date.now();
+    if(wait>0) await sleep(wait);
+    lastCall=Date.now();
+    if(run!==runId) throw new Stale();
+    let res;
+    try{res=await fetch(url)}
+    catch(e){
+      /* NCBI's rate-limit replies carry no CORS header, so they surface here as a network error */
+      if(attempt<4){await sleep(1000*(attempt+1));continue}
+      throw new Error("NCBI did not respond. Check your connection and try again.");
+    }
+    if(res.ok) return kind==="json"?res.json():res.text();
+    if((res.status===429||res.status>=500)&&attempt<3){await sleep(1200*(attempt+1));continue}
+    throw new Error("NCBI returned status "+res.status+". Try again in a moment.");
+  }
+}
+const fasta=(text,what)=>{
+  const t=text.trim();
+  if(!t.startsWith(">")) throw new Error("NCBI did not return a sequence for "+what+".");
+  const i=t.indexOf("\n");
+  return {header:t.slice(0,i),seq:t.slice(i+1).replace(/\s+/g,"").toUpperCase()};
+};
+
+/* ---------- Gene lookup ---------- */
+async function geneIds(sym,run){
+  const search=async field=>{
+    const term=`${sym}[${field}] AND 9606[taxid] AND alive[prop]`;
+    const d=await ncbi(`${EUTILS}esearch.fcgi?db=gene&retmode=json&term=${encodeURIComponent(term)}`,"json",run);
+    return d.esearchresult.idlist||[];
+  };
+  let ids=await search("pref");
+  if(!ids.length) ids=await search("sym");
+  return ids;
+}
+const summaries=async(ids,run)=>{
+  const d=await ncbi(`${EUTILS}esummary.fcgi?db=gene&retmode=json&id=${ids.join(",")}`,"json",run);
+  return ids.map(id=>d.result[id]);
+};
+
+async function lookup(raw){
+  const sym=raw.trim();
+  const run=++runId;
+  $("choices").hidden=true;
+  resetDownload();
+  if(!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(sym)){
+    setStatus("Enter a gene symbol using letters, numbers, dots or hyphens, such as VHL.",true);return;
+  }
+  busy(true);
+  try{
+    readFlank();
+    setStatus("Looking up "+sym+"…");
+    const ids=await geneIds(sym,run);
+    if(!ids.length){
+      $("main").hidden=true;
+      setStatus(`NCBI has no human gene named ${sym}. Check the spelling, or try the official HGNC symbol.`,true);
+      return;
+    }
+    const sums=await summaries(ids.slice(0,8),run);
+    if(sums.length>1){
+      $("main").hidden=true;
+      setStatus(`${sym} matches ${ids.length} human genes. Choose one.`);
+      showChoices(sym,sums);
+      return;
+    }
+    await loadGene(sums[0],sym,run);
+  }catch(e){fail(e,run)}
+  finally{if(run===runId) busy(false)}
+}
+function showChoices(sym,sums){
+  const box=$("choices");box.innerHTML="";box.hidden=false;
+  sums.forEach(g=>{
+    const b=document.createElement("button");b.type="button";
+    b.textContent=`${g.name}: ${g.description}`;
+    b.onclick=async()=>{
+      const run=++runId;box.hidden=true;busy(true);
+      try{await loadGene(g,sym,run)}catch(e){fail(e,run)}finally{if(run===runId) busy(false)}
+    };
+    box.append(b);
+  });
+}
+const rank=t=>t.select_category==="MANE_SELECT"?0:t.select_category==="MANE_PLUS_CLINICAL"?1:2;
+async function loadGene(g,asked,run){
+  setStatus("Reading the transcript list for "+g.name+"…");
+  const d=await ncbi(`${DATASETS}gene/id/${g.uid}/product_report?taxon=human`,"json",run);
+  const product=d.reports&&d.reports[0]&&d.reports[0].product;
+  if(!product) throw new Error("NCBI has no transcript report for "+g.name+".");
+  const txs=(product.transcripts||[]).filter(t=>/^(NM_|NR_)/.test(t.accession_version)&&(t.genomic_locations||[]).length);
+  if(!txs.length) throw new Error(g.name+" has no RefSeq NM_ or NR_ transcript on the genome.");
+  txs.sort((a,b)=>rank(a)-rank(b)||a.accession_version.localeCompare(b.accession_version));
+  const ctx={gene:g,asked,txs,product};
+  const sel=$("tx");sel.innerHTML="";
+  txs.forEach((t,i)=>{
+    const o=document.createElement("option");o.value=i;
+    o.textContent=t.accession_version+(t.select_category==="MANE_SELECT"?" (MANE Select)":t.select_category==="MANE_PLUS_CLINICAL"?" (MANE Plus Clinical)":"");
+    sel.append(o);
+  });
+  $("gene").value=g.name;sizeInput();
+  if(rank(txs[0])!==0){
+    sel.insertAdjacentHTML("afterbegin",'<option value="" selected>Choose a transcript</option>');
+    current={ctx};
+    showShell();
+    setStatus(`${g.name} has no MANE Select transcript. Choose one under Reference.`,true);
+    $("main").hidden=false;
+    return;
+  }
+  await build(ctx,txs[0],run);
+}
+function showShell(){
+  ["map","ticks","key","meta","checks","flags","g-box","c-box"].forEach(i=>$(i).innerHTML="");
+  ["readout","g-title","g-note","c-title","c-note"].forEach(i=>$(i).textContent="");
+  $("checks-title").textContent="Checks";
+}
+
+/* ---------- Fetch sequences and validate ---------- */
+function pickLocation(tx,asm){
+  const locs=tx.genomic_locations;
+  return asm==="T2T"?locs.find(l=>/T2T/.test(l.sequence_name||""))
+    :locs.find(l=>/GRCh38/.test(l.sequence_name||"")&&/Primary Assembly/.test(l.sequence_name||""));
+}
+async function build(ctx,tx,run){
+  resetDownload();
+  const flank=readFlank();
+  const g=ctx.gene, acc=tx.accession_version, asm=$("asm").value;
+  const loc=pickLocation(tx,asm);
+  if(!loc) throw new Error(`${acc} has no ${asm==="T2T"?"T2T-CHM13":"GRCh38 primary assembly"} location.`);
+  const begin=+loc.genomic_range.begin,end=+loc.genomic_range.end;
+  const minus=(loc.genomic_range.orientation||"").toLowerCase()==="minus";
+  const seqStart=begin-flank,seqStop=end+flank;
+  if(seqStart<1) throw new Error(`A ${fmt(flank)} bp flank runs past the start of the chromosome. ${g.name} allows at most ${fmt(begin-1)} bp.`);
+  const exonsRaw=(loc.exons||[]).slice().sort((a,b)=>a.order-b.order);
+  if(!exonsRaw.length) throw new Error(`NCBI lists no exons for ${acc}.`);
+
+  setStatus(`Fetching ${fmt(seqStop-seqStart+1)} bp of genomic sequence for ${g.name}…`);
+  const genomic=fasta(await ncbi(`${EUTILS}efetch.fcgi?db=nuccore&id=${loc.genomic_accession_version}&rettype=fasta&seq_start=${seqStart}&seq_stop=${seqStop}&strand=${minus?2:1}`,"text",run),"the genomic region").seq;
+  setStatus(`Fetching the ${acc} mRNA…`);
+  const mrna=fasta(await ncbi(`${EUTILS}efetch.fcgi?db=nuccore&id=${acc}&rettype=fasta`,"text",run),acc).seq;
+  const coding=!!(tx.cds&&tx.cds.range&&tx.cds.range.length);
+  let cds="",cdsHeader="";
+  if(coding){
+    setStatus(`Fetching the ${acc} CDS…`);
+    const f=fasta(await ncbi(`${EUTILS}efetch.fcgi?db=nuccore&id=${acc}&rettype=fasta_cds_na`,"text",run),"the CDS");
+    cds=f.seq;cdsHeader=f.header;
+  }
+  setStatus("Checking the sequences…");
+
+  /* Exons in genomic-string coordinates, transcript order */
+  let cum=0;
+  const cStart=coding?+tx.cds.range[0].begin:0, cEnd=coding?+tx.cds.range[tx.cds.range.length-1].end:0;
+  const exons=exonsRaw.map((e,i)=>{
+    const b=+e.begin,z=+e.end;
+    const a=minus?seqStop-z:b-seqStart, stop=minus?seqStop-b+1:z-seqStart+1;
+    const len=stop-a, mFrom=cum+1, mTo=cum+len;cum+=len;
+    return {n:i+1,a,b:stop,len,mFrom,mTo};
+  });
+  const mixedParts=[];let pos=0;
+  exons.forEach(e=>{
+    if(e.a>pos) mixedParts.push({t:genomic.slice(pos,e.a).toLowerCase(),ex:0});
+    mixedParts.push({t:genomic.slice(e.a,e.b),ex:e.n});pos=e.b;
+  });
+  if(pos<genomic.length) mixedParts.push({t:genomic.slice(pos).toLowerCase(),ex:0});
+  const mixed=mixedParts.map(p=>p.t).join("");
+  const rebuilt=exons.map(e=>genomic.slice(e.a,e.b)).join("");
+
+  /* CDS split at exon boundaries */
+  const cdsParts=[];
+  if(coding) exons.forEach(e=>{
+    const s=Math.max(e.mFrom,cStart),z=Math.min(e.mTo,cEnd);
+    if(s<=z) cdsParts.push({exon:e.n,t:mrna.slice(s-1,z)});
+  });
+
+  const prot=tx.protein||{};
+  const gates=[];
+  const add=(name,pass,detail)=>gates.push({name,pass,detail});
+  const lenOk=genomic.length===(end-begin+1)+2*flank;
+  const cdsLenOk=!coding||cds.length===cEnd-cStart+1;
+  add("Sequence lengths are as expected",lenOk&&cdsLenOk,
+    `Genomic ${fmt(genomic.length)} bp, expected ${fmt(end-begin+1+2*flank)}`+(coding?`. CDS ${fmt(cds.length)} nt, expected ${fmt(cEnd-cStart+1)}.`:"."));
+  const rebuildOk=rebuilt===mrna;
+  add("Joined exons reproduce the mRNA",rebuildOk,
+    rebuildOk?`${exons.length} exons, ${fmt(mrna.length)} nt, identical to ${acc}.`:mismatchNote(rebuilt,mrna));
+  if(coding){
+    const inside=mrna.substr(cStart-1,cds.length)===cds && cdsParts.map(p=>p.t).join("")===cds;
+    add("CDS sits in the mRNA at its stated position",inside,`mRNA ${fmt(cStart)} to ${fmt(cEnd)}.`);
+    const stop=cds.slice(-3),aa=cds.length/3-1;
+    const sane=cds.startsWith("ATG")&&/^(TGA|TAA|TAG)$/.test(stop)&&cds.length%3===0&&(!prot.length||aa===+prot.length);
+    add("CDS runs ATG to stop and matches the protein",sane,
+      `${cds.slice(0,3)} to ${stop}, ${Number.isInteger(aa)?fmt(aa):"not a whole number of"} codons${prot.length?`, ${prot.accession_version} has ${fmt(prot.length)} aa`:""}.`);
+  }
+  const upper=mixedParts.filter(p=>p.ex).reduce((s,p)=>s+p.t.length,0);
+  add("Uppercase bases equal the mRNA length",upper===mrna.length,`${fmt(upper)} uppercase, ${fmt(mrna.length)} in the mRNA.`);
+
+  /* Things to flag that do not block the download */
+  const flags=[];
+  if(g.name.toLowerCase()!==ctx.asked.toLowerCase()) flags.push(`${ctx.asked} is an alias. The official symbol is ${g.name}.`);
+  const plus=ctx.txs.filter(t=>t.select_category==="MANE_PLUS_CLINICAL");
+  if(plus.length) flags.push(`This gene also has a MANE Plus Clinical transcript: ${plus.map(t=>t.accession_version).join(", ")}. Variants reported on it will not number the same way.`);
+  if(tx.select_category!=="MANE_SELECT") flags.push(`${acc} is not the MANE Select transcript.`);
+  if(asm==="T2T") flags.push("T2T-CHM13 coordinates are in use. MANE is defined on GRCh38, so a mismatch with the mRNA is possible here.");
+  if(coding&&tx.cds.range.length>1) flags.push("NCBI splits this CDS into more than one range, which suggests a programmed frameshift. Review the numbering by hand.");
+  const nonCanon=[];
+  for(let i=0;i<exons.length-1;i++){
+    const don=genomic.slice(exons[i].b,exons[i].b+2),acp=genomic.slice(exons[i+1].a-2,exons[i+1].a);
+    if(don!=="GT"||acp!=="AG") nonCanon.push(`intron ${i+1} (${don}…${acp})`);
+  }
+  if(nonCanon.length) flags.push(`Non-canonical splice sites: ${nonCanon.join(", ")}. These can be genuine, so check them before trusting the boundary.`);
+  if(/[^ACGT]/.test(genomic)) flags.push("The genomic sequence contains bases other than A, C, G and T.");
+  if(/pseudogene/i.test(g.summary||"")) flags.push("NCBI's gene summary mentions a pseudogene. Primers and reads may need a specificity check.");
+
+  const m={flank,gene:g,tx,acc,prot,asm,loc,minus,begin,end,seqStart,seqStop,genomic,mixed,mixedParts,mrna,cds,cdsParts,cdsHeader,coding,cStart,cEnd,exons,gates,flags,
+    ccds:(cdsHeader.match(/CCDS:(CCDS[\d.]+)/)||[])[1]||"",
+    date:new Date().toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}),
+    asmName:((loc.sequence_name||"").match(/GRCh38(\.p\d+)?|T2T-CHM13(v[\d.]+)?/)||[asm])[0],
+    chrom:(g.chromosome||((loc.sequence_name||"").match(/Chromosome (\w+)/)||[])[1]||"?")};
+  m.mane=tx.select_category==="MANE_SELECT";
+  m.filename=`${g.name}_${m.mane?"MANE":acc}_sequences${flank!==DEFAULT_FLANK?`_flank${flank}`:""}${asm==="T2T"?"_T2T":""}.docx`;
+
+  setStatus("Writing the Word file…");
+  const file=await makeDocx(m);
+  if(run!==runId) throw new Stale();
+  render(m,ctx,file);
+}
+function mismatchNote(a,b){
+  if(a.length!==b.length) return `Exons give ${fmt(a.length)} nt, the mRNA has ${fmt(b.length)} nt.`;
+  let n=0,first=-1;for(let i=0;i<a.length;i++) if(a[i]!==b[i]){n++;if(first<0) first=i+1}
+  return `${fmt(n)} base differences, first at mRNA position ${fmt(first)}.`;
+}
+
+/* ---------- Word file, same layout as the existing reference documents ---------- */
+const W_NS="http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+function span(m){return `chr${m.chrom}:${fmt(m.seqStart)}-${fmt(m.seqStop)}`}
+function genomicTitle(m){return `Genomic sequence${m.flank?` + ${fmt(m.flank)} bp flanks`:", no flanks"} (${fmt(m.genomic.length)} bp)`}
+function genomicNote(m){
+  return `Span ${span(m)} (${m.asm==="T2T"?"T2T-CHM13":"GRCh38"}). ${m.flank?`${fmt(m.flank)} bp flanks each side`:"No flanks"}; transcript span = positions ${fmt(m.flank+1)}-${fmt(m.genomic.length-m.flank)}. Continuous, no spaces.`;
+}
+function cdsTitle(m){return `Coding sequence / CDS (${fmt(m.cds.length)} nt)`}
+function cdsNote(m){
+  const first=m.cdsParts[0].exon,last=m.cdsParts[m.cdsParts.length-1].exon,count=m.cdsParts.length;
+  const range=first===last?`exon ${first}`:`exons ${first}–${last}`;
+  const utr=first>1?`; ${first===2?"exon 1 is":`exons 1–${first-1} are`} entirely 5’UTR`:"";
+  return `Spliced CDS from ${m.acc} (mRNA ${fmt(m.cStart)}-${fmt(m.cEnd)}), ${m.cds.slice(0,3)} to ${m.cds.slice(-3)}, ${fmt(m.cds.length/3-1)} aa. Colour alternates at each exon boundary so coding-exon junctions are visible. Coding spans ${range} (${count} coding exon${count>1?"s":""}${utr}). Continuous, no spaces.`;
+}
+function metaRows(m){
+  const g=m.gene;
+  const rows=[["Gene",`${g.name} — NCBI Gene ID ${g.uid}, locus ${g.maplocation||"unknown"}`]];
+  const ens=m.tx.ensembl_transcript?`  (= Ensembl ${m.tx.ensembl_transcript})`:"";
+  rows.push([m.mane?"MANE Select transcript":"Transcript",m.acc+ens]);
+  if(m.coding&&m.prot.accession_version){
+    const iso=m.prot.isoform_name?`${m.prot.isoform_name}, `:"";
+    rows.push(["Protein",`${m.prot.accession_version} — ${iso}${fmt(m.prot.length)} aa${m.ccds?` (${m.ccds})`:""}`]);
+  }
+  rows.push(["Assembly",`${m.asmName} — chromosome ${m.chrom}, RefSeq ${m.loc.genomic_accession_version}, ${m.minus?"minus (−)":"plus (+)"} strand`]);
+  rows.push(["Source / date",`NCBI Datasets product report + E-utilities efetch, retrieved ${m.date}`]);
+  return rows;
+}
+function wRun(text,o={}){
+  const p=[];
+  if(o.font) p.push(`<w:rFonts w:ascii="${o.font}" w:cs="${o.font}" w:eastAsia="${o.font}" w:hAnsi="${o.font}"/>`);
+  if(o.b) p.push("<w:b/><w:bCs/>");
+  if(o.i) p.push("<w:i/><w:iCs/>");
+  if(o.color) p.push(`<w:color w:val="${o.color}"/>`);
+  if(o.size) p.push(`<w:sz w:val="${o.size}"/><w:szCs w:val="${o.size}"/>`);
+  return `<w:r>${p.length?`<w:rPr>${p.join("")}</w:rPr>`:""}<w:t xml:space="preserve">${esc(text)}</w:t></w:r>`;
+}
+function para(runs,o={}){
+  const p=[];
+  if(o.style) p.push(`<w:pStyle w:val="${o.style}"/>`);
+  if(o.before||o.after) p.push(`<w:spacing${o.before?` w:before="${o.before}"`:""}${o.after?` w:after="${o.after}"`:""}/>`);
+  return `<w:p>${p.length?`<w:pPr>${p.join("")}</w:pPr>`:""}${runs}</w:p>`;
+}
+async function makeDocx(m){
+  const BLUE="0070C0",GREY="808080",BLACK="000000";
+  const mono=(t,c)=>wRun(t,{font:"Courier New",size:18,color:c});
+  let body=para(wRun(`${m.gene.name} — ${m.mane?"MANE Select":m.acc} Reference Sequences`,{b:1}),{style:"Heading1"});
+  metaRows(m).forEach(([k,v])=>{body+=para(wRun(k+":  ",{b:1})+wRun(v),{after:60})});
+  body+=para(wRun("1. "+genomicTitle(m),{b:1}),{style:"Heading2",before:240});
+  body+=para(wRun(genomicNote(m),{i:1,color:"555555"}),{after:80});
+  body+=para(wRun("Legend:  ",{b:1})+wRun("EXONS = uppercase, blue",{b:1,color:BLUE})+wRun("   /   ")+wRun("introns + flanks = lowercase, grey",{b:1,color:GREY}),{after:120});
+  body+=para(m.mixedParts.map(p=>mono(p.t,p.ex?BLUE:GREY)).join(""));
+  if(m.coding){
+    body+=para(wRun("2. "+cdsTitle(m),{b:1}),{style:"Heading2",before:240});
+    body+=para(wRun(cdsNote(m),{i:1,color:"555555"}),{after:80});
+    body+=para(wRun("Legend:  ",{b:1})+wRun("colour change = new exon  (")+wRun("blue",{b:1,color:BLUE})+wRun(" / ")+wRun("black",{b:1})+wRun(" alternating; first coding exon = blue)"),{after:120});
+    body+=para(m.cdsParts.map((p,i)=>mono(p.t,i%2?BLACK:BLUE)).join(""));
+  }
+  const documentXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="${W_NS}"><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1000" w:right="1000" w:bottom="1000" w:left="1000" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+  const stylesXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="${W_NS}"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:cs="Calibri" w:eastAsia="Calibri" w:hAnsi="Calibri"/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:rPrDefault><w:pPrDefault/></w:docDefaults><w:style w:type="paragraph" w:styleId="Normal" w:default="1"><w:name w:val="Normal"/><w:qFormat/></w:style><w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:outlineLvl w:val="0"/></w:pPr><w:rPr><w:color w:val="2E74B5"/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:outlineLvl w:val="1"/></w:pPr><w:rPr><w:color w:val="2E74B5"/><w:sz w:val="26"/><w:szCs w:val="26"/></w:rPr></w:style></w:styles>`;
+  const files=[
+    ["[Content_Types].xml",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>`],
+    ["_rels/.rels",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`],
+    ["word/_rels/document.xml.rels",`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+    ["word/document.xml",documentXml],
+    ["word/styles.xml",stylesXml],
+  ];
+
+  /* Read the XML back and compare what is actually in the file with the source */
+  const parsed=new DOMParser().parseFromString(documentXml,"application/xml");
+  const wellFormed=!parsed.getElementsByTagName("parsererror").length;
+  const seqParas=[...parsed.getElementsByTagNameNS(W_NS,"p")].filter(p=>{
+    const f=p.getElementsByTagNameNS(W_NS,"rFonts")[0];
+    return f&&f.getAttributeNS(W_NS,"ascii")==="Courier New";
+  }).map(p=>p.textContent);
+  const gOk=seqParas[0]===m.mixed&&seqParas[0].toUpperCase()===m.genomic;
+  const cOk=!m.coding||seqParas[1]===m.cds;
+  const noSpace=seqParas.every(s=>!/\s/.test(s));
+  m.gates.push({name:"Sequences in the file are continuous and match the source",pass:gOk&&cOk&&noSpace,
+    detail:`Read back from the file: ${fmt((seqParas[0]||"").length)}${m.coding?` and ${fmt((seqParas[1]||"").length)}`:""} characters, ${noSpace?"no spaces":"spaces found"}.`});
+  const zipped=await zipFiles(files);
+  m.gates.push({name:"Word file is well formed",pass:wellFormed&&seqParas.length===(m.coding?2:1),
+    detail:`${files.length} parts, ${fmt(zipped.size)} bytes.`});
+  return zipped;
+}
+
+/* ---------- Minimal ZIP writer ---------- */
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++) c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++) c=CRC[(c^b[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0}
+async function deflate(bytes){
+  if(typeof CompressionStream==="undefined") return null;
+  try{
+    const s=new Blob([bytes]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+    return new Uint8Array(await new Response(s).arrayBuffer());
+  }catch(e){return null}
+}
+async function zipFiles(files){
+  const enc=new TextEncoder(),out=[],central=[];let offset=0;
+  const d=new Date();
+  const time=(d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1);
+  const date=((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate();
+  for(const [name,text] of files){
+    const nameB=enc.encode(name),data=enc.encode(text),crc=crc32(data);
+    const comp=await deflate(data);
+    const body=comp||data,method=comp?8:0;
+    const h=new DataView(new ArrayBuffer(30));
+    h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0,true);h.setUint16(8,method,true);
+    h.setUint16(10,time,true);h.setUint16(12,date,true);h.setUint32(14,crc,true);h.setUint32(18,body.length,true);
+    h.setUint32(22,data.length,true);h.setUint16(26,nameB.length,true);h.setUint16(28,0,true);
+    out.push(h.buffer,nameB,body);
+    const c=new DataView(new ArrayBuffer(46));
+    c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0,true);c.setUint16(10,method,true);
+    c.setUint16(12,time,true);c.setUint16(14,date,true);c.setUint32(16,crc,true);c.setUint32(20,body.length,true);
+    c.setUint32(24,data.length,true);c.setUint16(28,nameB.length,true);c.setUint32(42,offset,true);
+    central.push(c.buffer,nameB);
+    offset+=30+nameB.length+body.length;
+  }
+  const size=central.reduce((s,x)=>s+x.byteLength,0);
+  const e=new DataView(new ArrayBuffer(22));
+  e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,size,true);e.setUint32(16,offset,true);
+  return new Blob([...out,...central,e.buffer],{type:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"});
+}
+
+/* ---------- Page ---------- */
+function cLabel(m,p){
+  if(!m.coding) return `n.${p}`;
+  if(p<m.cStart) return `c.${p-m.cStart}`;
+  if(p<=m.cEnd) return `c.${p-m.cStart+1}`;
+  return `c.*${p-m.cEnd}`;
+}
+function render(m,ctx,file){
+  current={ctx,m};
+  showShell();
+  $("main").hidden=false;
+  rememberGene(m.gene.name);
+  try{history.replaceState(null,"","#"+m.gene.name)}catch(e){}
+
+  /* Map */
+  const map=$("map"),ticks=$("ticks");
+  const grow=n=>Math.sqrt(n).toFixed(2);
+  const every=m.exons.length<=30?1:m.exons.length<=80?5:10;
+  const add=(host,cls,g)=>{const d=document.createElement("div");d.className=cls;if(g!==undefined) d.style.flex=`${g} 0 0`;host.append(d);return d};
+  if(m.flank){add(map,"flank");add(ticks,"flank")}
+  m.exons.forEach((e,i)=>{
+    const b=document.createElement("button");
+    b.type="button";b.className="exon";b.style.flex=`${grow(e.len)} 0 0`;
+    b.style.background=exonFill(m,e);
+    b.setAttribute("aria-label",`Exon ${e.n}`);b.dataset.n=e.n;
+    b.onmouseenter=()=>readout(m,e);b.onfocus=()=>readout(m,e);
+    b.onclick=()=>jump(m,e);
+    map.append(b);
+    const t=add(ticks,"t",grow(e.len));t.style.minWidth="9px";
+    if(e.n===1||e.n%every===0||e.n===m.exons.length){const l=document.createElement("i");l.textContent=e.n;t.append(l)}
+    if(i<m.exons.length-1){
+      const gap=m.exons[i+1].a-e.b;
+      add(map,"intron",grow(gap));
+      const it=add(ticks,"intron",grow(gap));it.style.minWidth="5px";
+    }
+  });
+  if(m.flank){add(map,"flank");add(ticks,"flank")}
+  map.style.minWidth=ticks.style.minWidth=(m.exons.length*24+52)+"px";
+  $("key").innerHTML=(m.coding?'<span><b style="background:var(--coding)"></b>Coding</span><span><b style="background:var(--utr)"></b>UTR</span>':'<span><b style="background:var(--utr)"></b>Exon (non-coding)</span>')+`<span>${m.exons.length} exon${m.exons.length>1?"s":""}, ${m.minus?"minus":"plus"} strand</span>`;
+  readout(m,m.exons[0]);
+
+  /* Reference */
+  $("meta").innerHTML=metaRows(m).map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")+`<dt>Name</dt><dd>${esc(m.gene.description||"")}</dd>`;
+
+  /* Checks */
+  const failed=m.gates.filter(g=>!g.pass).length;
+  $("checks-title").textContent=failed?`${failed} of ${m.gates.length} checks failed`:`All ${m.gates.length} checks passed`;
+  $("checks").innerHTML=m.gates.map(g=>`<li class="${g.pass?"":"fail"}"><span class="m" aria-label="${g.pass?"Passed":"Failed"}">${g.pass?"✓":"✕"}</span><div>${esc(g.name)}<small>${esc(g.detail)}</small></div></li>`).join("");
+  $("flags").innerHTML=m.flags.map(f=>`<li>${esc(f)}</li>`).join("");
+
+  /* Sequences */
+  $("g-title").textContent=genomicTitle(m);
+  $("g-note").textContent=genomicNote(m);
+  fillBox($("g-box"),m.mixedParts.map(p=>{
+    const s=document.createElement("span");s.className=p.ex?"x":"n";if(p.ex) s.dataset.ex=p.ex;s.textContent=p.t;return s;
+  }),m.mixed.length);
+  $("cds-sec").hidden=!m.coding;
+  if(m.coding){
+    $("c-title").textContent=cdsTitle(m);
+    $("c-note").textContent=cdsNote(m);
+    fillBox($("c-box"),m.cdsParts.map((p,i)=>{
+      const s=document.createElement("span");s.className=i%2?"k":"x";s.title=`Exon ${p.exon}`;s.textContent=p.t;return s;
+    }),m.cds.length);
+  }
+
+  /* Download */
+  if(dlUrl) URL.revokeObjectURL(dlUrl);
+  dlUrl=URL.createObjectURL(file);
+  const dl=$("dl");
+  dl.href=dlUrl;dl.hidden=false;
+  dl.classList.toggle("unchecked",failed>0);
+  dl.download=failed?m.filename.replace(".docx","_UNVALIDATED.docx"):m.filename;
+  dl.textContent=failed?"Download anyway, marked unvalidated":`Download ${m.filename}`;
+  setStatus(failed
+    ?`${m.gene.name}: ${failed} check${failed>1?"s":""} failed. Review them below before using this file.`
+    :`${m.gene.description||m.gene.name}. ${m.gene.maplocation||""}, ${m.acc}, ${fmt(m.genomic.length)} bp genomic${m.coding?`, ${fmt(m.cds.length)} nt CDS`:""}.`,failed>0);
+}
+function exonFill(m,e){
+  if(!m.coding) return "var(--utr)";
+  const s=Math.max(e.mFrom,m.cStart),z=Math.min(e.mTo,m.cEnd);
+  if(s>z) return "var(--utr)";
+  const a=((s-e.mFrom)/e.len*100).toFixed(1),b=((z-e.mFrom+1)/e.len*100).toFixed(1);
+  if(+a===0&&+b===100) return "var(--coding)";
+  return `linear-gradient(90deg,var(--utr) ${a}%,var(--coding) ${a}%,var(--coding) ${b}%,var(--utr) ${b}%)`;
+}
+function readout(m,e){
+  document.querySelectorAll(".exon.on").forEach(x=>x.classList.remove("on"));
+  const b=document.querySelector(`.exon[data-n="${e.n}"]`);if(b) b.classList.add("on");
+  const range=`${cLabel(m,e.mFrom)} to ${cLabel(m,e.mTo)}`;
+  $("readout").textContent=`Exon ${e.n} of ${m.exons.length}: ${fmt(e.len)} bp, positions ${fmt(e.a+1)} to ${fmt(e.b)} in the genomic sequence, ${range}.`;
+}
+function jump(m,e){
+  readout(m,e);
+  const box=$("g-box");
+  const s=box.querySelector(`span[data-ex="${e.n}"]`);
+  if(!s) return;
+  box.querySelectorAll(".hit").forEach(x=>x.classList.remove("hit"));
+  s.classList.add("hit");
+  box.scrollTop=s.offsetTop-box.clientHeight/3;
+  const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+  box.scrollIntoView({block:"nearest",behavior:reduce?"auto":"smooth"});
+}
+function fillBox(box,nodes,len){
+  box.innerHTML="";
+  if(len>1500000){
+    box.textContent=`This sequence is ${fmt(len)} long, too long to display here. Use the copy button or the Word file.`;
+    return;
+  }
+  box.append(...nodes);
+}
+async function copy(text,btn){
+  const label=btn.dataset.label||(btn.dataset.label=btn.textContent);
+  let ok=false;
+  try{await navigator.clipboard.writeText(text);ok=true}
+  catch(e){
+    const t=document.createElement("textarea");t.value=text;t.style.position="fixed";t.style.opacity="0";
+    document.body.append(t);t.select();
+    try{ok=document.execCommand("copy")}catch(x){}
+    t.remove();
+  }
+  btn.textContent=ok?"Copied":"Copy failed. Select the text instead.";
+  setTimeout(()=>{btn.textContent=label},1800);
+}
+function setStatus(t,err){const s=$("status");s.textContent=t;s.classList.toggle("err",!!err)}
+function busy(on){const b=$("go");b.disabled=on;b.textContent=on?"Working…":"Get sequences"}
+function resetDownload(){const d=$("dl");d.hidden=true;d.removeAttribute("href")}
+function fail(e,run){
+  if(e instanceof Stale||run!==runId) return;
+  console.error(e);
+  $("main").hidden=true;
+  setStatus(e.message||"Something went wrong. Try again.",true);
+}
+function sizeInput(){$("gene").classList.toggle("long",$("gene").value.length>8)}
+function rememberGene(name){
+  let list=[];try{list=JSON.parse(store.get("genedoc.recent")||"[]")}catch(e){}
+  list=[name,...list.filter(x=>x!==name)].slice(0,8);
+  store.set("genedoc.recent",JSON.stringify(list));
+  drawRecent(list);
+}
+function drawRecent(list){
+  const r=$("recent");r.innerHTML="";r.hidden=!list.length;
+  if(!list.length) return;
+  const l=document.createElement("span");l.textContent="Recent";r.append(l);
+  list.forEach(n=>{
+    const b=document.createElement("button");b.type="button";b.textContent=n;
+    b.onclick=()=>{$("gene").value=n;sizeInput();lookup(n)};
+    r.append(b);
+  });
+}
+$("form").addEventListener("submit",e=>{e.preventDefault();lookup($("gene").value)});
+$("gene").addEventListener("input",sizeInput);
+$("copy-g").onclick=e=>current&&current.m&&copy(current.m.mixed,e.currentTarget);
+$("copy-c").onclick=e=>current&&current.m&&copy(current.m.cds,e.currentTarget);
+const rebuild=async()=>{
+  if(!current) return;
+  const ctx=current.ctx,i=$("tx").value;
+  if(i==="") return;
+  const run=++runId;busy(true);
+  try{await build(ctx,ctx.txs[+i],run)}catch(e){fail(e,run)}finally{if(run===runId) busy(false)}
+};
+$("tx").addEventListener("change",rebuild);
+$("asm").addEventListener("change",rebuild);
+try{drawRecent(JSON.parse(store.get("genedoc.recent")||"[]"))}catch(e){}
+const fromHash=decodeURIComponent(location.hash.slice(1));
+if(fromHash){$("gene").value=fromHash;sizeInput();lookup(fromHash)}
+</script>
+</body>
+</html>
