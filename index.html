@@ -39,6 +39,7 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--page);color:var(--ink);font:16px/1.5 var(--body)}
 button,input,select{font:inherit;color:inherit}
@@ -52,6 +53,8 @@ button,input,select{font:inherit;color:inherit}
 .name{font-weight:600}
 .recent{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;font-size:15px}
 .recent span{color:var(--band-soft)}
+.top-right{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:baseline}
+.theme-btn{background:transparent;border:1px solid var(--band-soft);color:var(--band-ink);border-radius:3px;padding:4px 10px;font-size:14px;cursor:pointer}
 .recent button{background:none;border:0;padding:0;color:var(--band-ink);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 form{margin-top:14px}
 .gene-input{display:block;width:100%;background:transparent;border:0;border-bottom:4px solid var(--band-line);border-radius:0;color:var(--band-ink);
@@ -141,13 +144,16 @@ footer p{margin:0;max-width:80ch}
   <div class="wrap">
     <div class="top">
       <div class="name">GeneDoc</div>
-      <div class="recent" id="recent" hidden></div>
+      <div class="top-right">
+        <div class="recent" id="recent" hidden></div>
+        <button class="theme-btn" id="theme" type="button" aria-pressed="false">Dark mode</button>
+      </div>
     </div>
     <form id="form" autocomplete="off">
       <label for="gene" style="position:absolute;left:-9999px">Human gene symbol</label>
       <input class="gene-input" id="gene" placeholder="Gene" spellcheck="false" autocapitalize="characters" maxlength="30" autofocus>
       <div class="actions">
-        <label class="flank-field" for="flank">Flank, bp each side<input id="flank" type="number" min="0" max="100000" step="1" value="250" inputmode="numeric"></label>
+        <label class="flank-field" for="flank">Flank, bp each side<input id="flank" type="number" min="0" max="100000" step="1" value="0" inputmode="numeric"></label>
         <button class="btn btn-go" id="go" type="submit">Get sequences</button>
         <a class="btn btn-dl" id="dl" hidden></a>
         <p class="status" id="status" role="status" aria-live="polite">Type a human gene to get its MANE Select genomic sequence with flanks and its CDS, as a checked Word file.</p>
@@ -212,7 +218,7 @@ footer p{margin:0;max-width:80ch}
 "use strict";
 const EUTILS="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/";
 const DATASETS="https://api.ncbi.nlm.nih.gov/datasets/v2/";
-const DEFAULT_FLANK=250, MAX_FLANK=100000;
+const DEFAULT_FLANK=0, MAX_FLANK=100000;
 const $=id=>document.getElementById(id);
 const fmt=n=>Number(n).toLocaleString("en-US");
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&apos;"}[c]));
@@ -221,6 +227,19 @@ const store={
   set(k,v){try{v?localStorage.setItem(k,v):localStorage.removeItem(k)}catch(e){}}
 };
 let runId=0, current=null, dlUrl=null;
+
+/* ---------- Theme toggle ---------- */
+(function(){
+  const btn=$("theme"), root=document.documentElement;
+  const sysDark=()=>window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches;
+  const isDark=()=>root.dataset.theme?root.dataset.theme==="dark":sysDark();
+  const sync=()=>{const d=isDark();btn.textContent=d?"Light mode":"Dark mode";btn.setAttribute("aria-pressed",String(d))};
+  const saved=store.get("genedoc-theme");
+  if(saved==="dark"||saved==="light") root.dataset.theme=saved;
+  sync();
+  btn.addEventListener("click",()=>{const t=isDark()?"light":"dark";root.dataset.theme=t;store.set("genedoc-theme",t);sync()});
+  if(window.matchMedia) matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change",sync);
+})();
 function readFlank(){
   const raw=$("flank").value.trim();
   if(!/^\d+$/.test(raw)||+raw>MAX_FLANK) throw new Error(`Enter a flank between 0 and ${fmt(MAX_FLANK)} bp, as a whole number.`);
